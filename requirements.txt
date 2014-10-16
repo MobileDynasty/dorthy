@@ -1,0 +1,9 @@
+PyYAML==3.11
+tornado==4.0.2
+redis==2.10.3
+raven==5.1.0
+pycrypto==2.6.1
+SQLAlchemy==0.9.8
+jinja2==2.7.3
+py3k-bcrypt==0.3
+pytz
