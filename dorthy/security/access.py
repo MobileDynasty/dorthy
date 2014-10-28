@@ -18,7 +18,7 @@ class AccessDeniedError(Exception):
     pass
 
 
-class AuthoritySerializer(object):
+class AuthorityJSONSerializer(object):
 
     def deserialize(self, data):
         dct = data if isinstance(data, dict) else json.loads(native_str(data))

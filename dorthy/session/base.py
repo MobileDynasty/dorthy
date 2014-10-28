@@ -1,4 +1,8 @@
+import base64
 import logging
+import pickle
+import sys
+
 from collections import MutableMapping
 from time import time
 from uuid import uuid4
@@ -16,6 +20,8 @@ class Session(MutableMapping):
     """Provides a session data structure that provides dictionary
     access.  Provides JSON serialization and deserialization methods.
     """
+
+    _SYS_ENCODING = sys.getdefaultencoding()
 
     def __init__(self, session_id, timeout=DEFAULT_SESSION_TIMEOUT, update_access=True):
         self.__session_id = session_id
@@ -98,7 +104,12 @@ class Session(MutableMapping):
         return self.__valid
 
     def encode(self):
-        return jsonify(self)
+        d = self._as_dict()
+        # pickle data elements
+        if d["data"]:
+            pickled = pickle.dumps(self.__data)
+            d["data"] = base64.standard_b64encode(pickled).decode(self._SYS_ENCODING)
+        return jsonify(d)
 
     def _as_dict(self):
         d = dict()
@@ -124,9 +135,14 @@ class Session(MutableMapping):
             self.timeout = DEFAULT_SESSION_TIMEOUT
         self.update_access = d["update_access"]
         self.__valid = True
-        self.__data = d["data"]
-        if not self.__data:
+        if "data" not in d:
             self.__data = dict()
+        elif d["data"]:
+            data = d["data"]
+            # decode pickled data
+            b = data.encode(self._SYS_ENCODING)
+            pickled = base64.standard_b64decode(b)
+            self.__data = pickle.loads(pickled)
         return self
 
     def invalidate(self):

@@ -11,7 +11,7 @@ class RedisSessionStore(BaseSessionStore):
 
     @staticmethod
     def _store_key(session_id):
-        return redis.create_key(redis.WEB_SESSION_PREFIX, session_id)
+        return redis.create_key(WEB_SESSION_PREFIX, session_id)
 
     def load(self, session_id):
         session_data = redis.client.get(self._store_key(session_id))

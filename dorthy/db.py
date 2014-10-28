@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
 
-from sqlalchemy import orm, create_engine, BigInteger, Column, DateTime, event, exc, String
+from sqlalchemy import orm, create_engine, BigInteger, Column, DateTime, Integer, event, exc, String
 from sqlalchemy.pool import Pool
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
@@ -47,6 +47,15 @@ class TimestampMixin(object):
 class UpdateTimestampMixin(TimestampMixin):
 
     updated = Column("updated_ts", DateTime)
+
+
+class VersionedMixin(object):
+
+    version_id = Column(Integer, nullable=False)
+
+    __mapper_args__ = {
+        "version_id_col": version_id
+    }
 
 
 class EnumIntType(TypeDecorator):
@@ -100,6 +109,7 @@ def transactional(*args):
 @transactional()
 def add(entity):
     Session().add(entity)
+    return entity
 
 
 def find_by_id(entity_type, entity_id, not_found_error=True):

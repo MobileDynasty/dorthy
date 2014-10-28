@@ -1,6 +1,9 @@
+import base64
 import json
 import logging
 import inspect
+import pickle
+import sys
 
 from collections import Iterable
 from contextlib import contextmanager
@@ -11,7 +14,7 @@ from dorthy.json import jsonify
 from dorthy.request import RequestContextManager, RequestContextError
 from dorthy.utils import create_set, native_str
 
-from .access import AuthoritySerializer, GroupVoter, UnanimousDecisionManager
+from .access import AuthorityJSONSerializer, GroupVoter, UnanimousDecisionManager
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,7 @@ class SecurityException(Exception):
     pass
 
 
-class PrincipalSerializer(object):
+class PrincipalJSONSerializer(object):
     """Serializes and de-serializes a principal object.
     """
 
@@ -93,7 +96,7 @@ class Principal(object):
         return self.__timezone
 
 
-class GroupSerializer(object):
+class GroupJSONSerializer(object):
     """Serializes and de-serializes a group object.
     """
 
@@ -307,13 +310,13 @@ class SimpleAuthentication(Authentication):
         return self.groups
 
 
-class SimpleAuthenticationSerializer(object):
+class SimpleAuthenticationJSONSerializer(object):
 
     def deserialize(self, data):
         dct = json.loads(native_str(data))
-        principal = PrincipalSerializer().deserialize(dct["principal"])
-        groups = self._deserialize_list(dct.get("groups", None), GroupSerializer)
-        authorities = self._deserialize_list(dct.get("authorities", None), AuthoritySerializer)
+        principal = PrincipalJSONSerializer().deserialize(dct["principal"])
+        groups = self._deserialize_list(dct.get("groups", None), GroupJSONSerializer)
+        authorities = self._deserialize_list(dct.get("authorities", None), AuthorityJSONSerializer)
         return SimpleAuthentication(principal, authorities, groups)
 
     def serialize(self, authentication):
@@ -327,6 +330,20 @@ class SimpleAuthenticationSerializer(object):
                 l.append(serializer.deserialize(d))
             return l
         return None
+
+
+class AuthenticationPickleSerializer(object):
+
+    _SYS_ENCODING = sys.getdefaultencoding()
+
+    def deserialize(self, data):
+        b = data.encode(self._SYS_ENCODING)
+        pickled = base64.standard_b64decode(b)
+        return pickle.loads(pickled)
+
+    def serialize(self, authentication):
+        pickled = pickle.dumps(authentication)
+        return base64.standard_b64encode(pickled).decode(self._SYS_ENCODING)
 
 
 ADMIN_GROUP = Group("root", security_group=True)
