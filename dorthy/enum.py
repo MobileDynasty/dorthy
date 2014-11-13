@@ -192,7 +192,7 @@ class DeclarativeEnumType(SchemaType, TypeDecorator):
 
         self.enum = enum
 
-    def copy(self):
+    def copy(self, **kwargs):
         return DeclarativeEnumType(self.enum)
 
     def process_bind_param(self, value, dialect):

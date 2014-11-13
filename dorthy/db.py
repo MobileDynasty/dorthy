@@ -122,6 +122,10 @@ def find_by_id(entity_type, entity_id, not_found_error=True):
         return None
 
 
+def find_all(entity_type):
+    return Session().query(entity_type).all()
+
+
 def _create_engine():
     # define DB Engine
     db_conf = config.db
