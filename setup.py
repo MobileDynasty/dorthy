@@ -1,7 +1,7 @@
 from distutils.core import setup
 from setuptools import find_packages
 
-version = "0.4.4"
+version = "0.4.5"
 
 install_requires = [
     "PyYAML",
@@ -22,7 +22,7 @@ setup(
     url='https://github.com/MobileDynasty/dorthy',
     author='dev@mobile-dynasty.com',
     author_email='dev@mobile-dynasty.com',
-    license='http://www.apache.org/licenses/LICENSE-2.0',
+    license='MIT',
     description="a micro web framework for Tornado",
     long_description='a micro web framework for Tornado',
     keywords='web framework development',
@@ -37,7 +37,7 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Internet :: WWW/HTTP',
 
-        'License :: OSI Approved :: Apache Software License',
+        'License :: OSI Approved :: MIT License',
 
         'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
