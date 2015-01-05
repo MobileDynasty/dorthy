@@ -1,7 +1,7 @@
 from distutils.core import setup
 from setuptools import find_packages
 
-version = "0.4.5"
+version = "0.4.6"
 
 install_requires = [
     "PyYAML",

@@ -11,16 +11,22 @@ logger = logging.getLogger(__name__)
 
 class UserPasswordAuthHandler(BaseHandler):
 
+    def _get_default_url(self):
+        if "default_url" in self.application.settings:
+            return self.application.settings["default_url"]
+        else:
+            return "/"
+
     @render
     def get(self):
-        return "login.html", dict(next=self.get_argument("next", "/"))
+        return "login.html", dict(next=self.get_argument("next", self._get_default_url()))
 
     @redirect
     def post(self):
 
         username = self.get_argument("username")
         password = self.get_argument("password")
-        next_url = self.get_argument("next", "/")
+        next_url = self.get_argument("next", self._get_default_url())
 
         try:
             token = UsernamePasswordAuthenticationToken(username, password)
