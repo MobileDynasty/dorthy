@@ -6,7 +6,7 @@ from functools import wraps
 
 from sqlalchemy import orm, create_engine, BigInteger, Column, DateTime, Integer, event, exc, String
 from sqlalchemy.pool import Pool
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound, StaleDataError
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.types import TypeDecorator, SmallInteger
 
@@ -122,8 +122,29 @@ def find_by_id(entity_type, entity_id, not_found_error=True):
         return None
 
 
+def find_by_id_versioned(entity_type, entity_id, version_id):
+    try:
+        return Session().query(entity_type).\
+            filter(entity_type.id == entity_id).\
+            filter(entity_type.version_id == version_id).one()
+    except NoResultFound:
+        raise StaleDataError("Entity not found for version - id: {}, version: {}".format(entity_id, version_id))
+
+
 def find_all(entity_type):
     return Session().query(entity_type).all()
+
+
+@transactional()
+def delete(entity_type, entity_id):
+    entity = find_by_id(entity_type, entity_id)
+    Session().delete(entity)
+
+
+@transactional()
+def delete_versioned(entity_type, entity_id, version_id):
+    entity = find_by_id_versioned(entity_type, entity_id, version_id)
+    Session().delete(entity)
 
 
 def _create_engine():

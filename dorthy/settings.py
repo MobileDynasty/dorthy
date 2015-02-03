@@ -82,9 +82,22 @@ def _load_path(pathname):
             key = os.path.basename(confpath)[:-4]
             conf = yaml.load(f)
             props[key] = conf
+
     global config
-    config = Properties(props)
+    if config is None:
+        config = Properties(props)
+    else:
+        # reload config with overrides
+        d = config._asdict()
+        for name, value in props.items():
+            d[name] = value
+        config = Properties(d)
 
 
 # load default path from working directory
-_load_path(os.path.join(os.getcwd(), "conf"))
+_conf_dir = os.path.join(os.getcwd(), "conf")
+_load_path(_conf_dir)
+
+# load overrides
+if os.getenv("CONF_OVERRIDE"):
+    _load_path(os.path.join(_conf_dir, os.getenv("CONF_OVERRIDE")))
