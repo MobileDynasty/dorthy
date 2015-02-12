@@ -284,8 +284,8 @@ class RequestContextSecurityContextManager(object):
             del RequestContextManager.get_context()["security_context"]
 
     def active(self):
-        self._assert_request_context()
-        return "security_context" in RequestContextManager.get_context()
+        return RequestContextManager.active() and \
+            "security_context" in RequestContextManager.get_context()
 
     def get_context(self):
         self._assert_request_context()
@@ -356,6 +356,9 @@ class DevAuthenticationProvider(object):
         principal = Principal(-1, authentication_token.username)
         auth = SimpleAuthentication(principal, groups=ADMIN_GROUP)
         SecurityManager().set_authentication(auth)
+
+    def supports(self, authentication_token):
+        return hasattr(authentication_token, "username")
 
 
 _IN_MEMORY_CONTEXT_STORE = InMemorySecurityContextStore()
