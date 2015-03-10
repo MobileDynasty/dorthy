@@ -145,7 +145,7 @@ def hasfunc(obj, name):
     return False
 
 
-_REPLACE = re.compile("_([a-z])")
+_REPLACE_UNDERSCORE = re.compile("_([a-z])")
 
 
 def camel_match(match):
@@ -153,4 +153,12 @@ def camel_match(match):
 
 
 def camel_encode(s):
-    return re.sub(_REPLACE, camel_match, s)
+    return re.sub(_REPLACE_UNDERSCORE, camel_match, s)
+
+
+_FIRST_CAP = re.compile("(.)([A-Z][a-z]+)")
+_ALL_CAP = re.compile("([a-z0-9])([A-Z])")
+
+
+def camel_decode(s):
+    return _ALL_CAP.sub(r"\1_\2", _FIRST_CAP.sub(r"\1_\2", s)).lower()

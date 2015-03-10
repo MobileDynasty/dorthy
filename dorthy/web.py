@@ -1,4 +1,6 @@
 import functools
+import inspect
+import json
 import logging
 import traceback
 import urllib
@@ -7,7 +9,7 @@ import urllib.parse
 from collections import namedtuple
 from functools import partial
 
-from tornado.escape import json_decode
+from tornado.escape import to_basestring
 from tornado.web import RequestHandler, HTTPError
 
 from dorthy import template
@@ -17,7 +19,7 @@ from dorthy.session import session_store, Session
 from dorthy.request import WebRequestHandlerProxyMixin
 from dorthy.security import SecurityManager, AccessDeniedError, AuthenticationException
 from dorthy.settings import config
-from dorthy.utils import native_str
+from dorthy.utils import camel_decode, native_str
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class MediaTypes(DeclarativeEnum):
     JSON = "application/json"
 
 
-def consumes(media=MediaTypes.JSON, arg_name="model"):
+def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
 
     class _Consumes(object):
 
@@ -50,11 +52,45 @@ def consumes(media=MediaTypes.JSON, arg_name="model"):
             if not m_self.request.headers.get("Content-Type", "").startswith(media.value):
                 raise HTTPError(400, "Invalid Content-Type received.")
             if media == MediaTypes.JSON:
-                # parse json
-                kwargs[arg_name] = json_decode(m_self.request.body)
+                kwargs[arg_name] = self._parse_json(m_self.request)
             else:
                 raise HTTPError(500, "MediaType not supported.")
             return self._method(*args, **kwargs)
+
+        # def _find_model_argument(self):
+        #
+        #     sig = inspect.signature(self._method)
+        #     params = sig.parameters
+        #
+        #     model_arg_name = None
+        #     for name, param in params.items():
+        #         if name == arg_name:
+        #             model_arg_name = name
+        #         elif param.annotation != inspect.Parameter.empty and param.annotation == "model":
+        #             model_arg_name = name
+        #
+        #         if model_arg_name is not None:
+        #             break
+        #
+        #     if model_arg_name is None:
+        #         raise TypeError("No model argument found in method signature")
+        #
+        #     return model_arg_name
+
+        @staticmethod
+        def _process_camel_case(d):
+            processed = dict()
+            for key, value in d.items():
+                processed[camel_decode(key)] = value
+            return processed
+
+        @staticmethod
+        def _parse_json(request):
+            s = to_basestring(request.body)
+            if underscore_case:
+                return json.loads(s, object_hook=_Consumes._process_camel_case)
+            else:
+                return json.loads(s)
 
     return _Consumes
 
