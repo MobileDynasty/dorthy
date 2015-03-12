@@ -9,7 +9,7 @@ from collections import Iterable
 from contextlib import contextmanager
 from functools import partial
 
-from dorthy.dp import Singleton, ObjectDictionary
+from dorthy.dp import Singleton, ObjectMap
 from dorthy.json import jsonify
 from dorthy.request import RequestContextManager, RequestContextError
 from dorthy.utils import create_set, native_str
@@ -383,7 +383,7 @@ class SecurityManager(object):
 
     def config_from_object(self, obj, inherit=True):
         if inspect.ismodule(obj):
-            config = ObjectDictionary(obj)
+            config = ObjectMap(obj)
         elif isinstance(obj, dict):
             config = obj
         else:

@@ -123,9 +123,9 @@ class Observable(object):
         return True if self.__listeners.pop(listener_id, None) else False
 
 
-class ObjectDictionary(MutableMapping):
+class ObjectMap(MutableMapping):
     """Converts object attribute access to a
-    dictionary view.
+    map view.
     """
 
     def __init__(self, obj, ignore_=True):
@@ -169,3 +169,17 @@ class ObjectDictionary(MutableMapping):
 
     def __iter__(self):
         return iter(self._get_attrs())
+
+
+class ObjectDict(dict):
+    """Extends dict to provide object attribute get and set access.
+    """
+
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        self[name] = value

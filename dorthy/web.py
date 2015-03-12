@@ -13,6 +13,7 @@ from tornado.escape import to_basestring
 from tornado.web import RequestHandler, HTTPError
 
 from dorthy import template
+from dorthy.dp import ObjectDict
 from dorthy.enum import DeclarativeEnum
 from dorthy.json import jsonify
 from dorthy.session import session_store, Session
@@ -88,9 +89,10 @@ def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
         def _parse_json(request):
             s = to_basestring(request.body)
             if underscore_case:
-                return json.loads(s, object_hook=_Consumes._process_camel_case)
+                json_dict = json.loads(s, object_hook=_Consumes._process_camel_case)
             else:
-                return json.loads(s)
+                json_dict = json.loads(s)
+            return ObjectDict(json_dict)
 
     return _Consumes
 
