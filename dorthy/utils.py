@@ -162,3 +162,18 @@ _ALL_CAP = re.compile("([a-z0-9])([A-Z])")
 
 def camel_decode(s):
     return _ALL_CAP.sub(r"\1_\2", _FIRST_CAP.sub(r"\1_\2", s)).lower()
+
+
+class Switch(object):
+
+    def __init__(self, s_map):
+        self.__s_map = s_map
+
+    def switch(self, case, *args, **kwargs):
+        f = self.__s_map.get(case, None)
+        if f is None:
+            # use default
+            f = self.__s_map.get("default", None)
+            if f is None:
+                raise NotImplementedError("No default case found for case: " + xstr(case))
+        f(*args, **kwargs)
