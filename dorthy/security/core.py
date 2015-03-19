@@ -5,9 +5,10 @@ import inspect
 import pickle
 import sys
 
-from collections import Iterable
+from collections import Iterable, namedtuple
 from contextlib import contextmanager
-from functools import partial
+
+from decorator import decorator
 
 from dorthy.dp import Singleton, ObjectMap
 from dorthy.json import jsonify
@@ -464,29 +465,51 @@ class SecurityManager(object):
             self.get_authentication(), *args, **kwargs)
 
 
-def authorized(expression):
-    """A decorator that allows control of access to
-    a method or function.  Authorization is checked against
-    the SecurityManager.
+AuthorizedAttribute = namedtuple("AuthorizedAttribute", ["f", "args", "kwargs"])
+
+
+def authorized(expression=None, arg_name="authentication"):
     """
+    Decorator that is used to check authorization.
 
-    class _Authorized(object):
-        def __init__(self, method):
-            self.__method = method
-            self.__doc__ = method.__doc__
-            self.__name__ = method.__name__
+    :param expression: the security expression. If no expression is passed
+    then the system just checks to see if a user is authenticated in the system.
 
-        def __get__(self, obj, type=None):
-            return partial(self, obj)
+    :param arg_name: the optional argument name used to inject the authentication
+    object into a method or function that is decorated.
+    """
+    def _authorized(f, *args, **kwargs):
 
-        def __call__(self, *args, **kwargs):
-            SecurityManager().authorized(expression, self.__method)
-            return self.__method(*args, **kwargs)
+        if expression is None and not SecurityManager().authenticated():
+            raise AuthenticationException("Not Authenticated")
+        else:
+            attribute = AuthorizedAttribute(f=f, args=args, kwargs=kwargs)
+            SecurityManager().authorized(expression, attribute=attribute)
 
-    return _Authorized
+        if arg_name in kwargs:
+            kwargs[arg_name] = SecurityManager().get_authentication()
+        else:
+            sig = inspect.signature(f)
+            params = sig.parameters
+            for indx, (name, param) in enumerate(params.items()):
+                if indx == len(args):
+                    break
+                if name == arg_name or \
+                        (param.annotation != inspect.Parameter.empty and param.annotation == "auth"):
+                    args = list(args)
+                    args[indx] = SecurityManager().get_authentication()
+                    break
+
+        return f(*args, **kwargs)
+
+    return decorator(_authorized)
 
 
 @contextmanager
-def authorized_context(expression):
+def authorized_context(expression=None):
+    """
+    Authorized context
+    :param expression: the expression
+    """
     SecurityManager().authorized(expression)
     yield SecurityManager().get_authentication()

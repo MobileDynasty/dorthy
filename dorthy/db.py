@@ -4,12 +4,15 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
 
+from decorator import decorator
+
 from sqlalchemy import orm, create_engine, BigInteger, Column, DateTime, Integer, event, exc, String
 from sqlalchemy.pool import Pool
 from sqlalchemy.orm.exc import NoResultFound, StaleDataError
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.types import TypeDecorator, SmallInteger
 
+from dorthy.enum import DeclarativeEnum
 from dorthy.settings import config
 from dorthy.request import RequestContextManager
 
@@ -81,6 +84,10 @@ def get_enum_values(type_name):
     return [row[0] for row in result]
 
 
+class TransactionScope(DeclarativeEnum):
+    Required = "required"
+
+
 @contextmanager
 def transacted_session(**kwargs):
 
@@ -96,14 +103,11 @@ def transacted_session(**kwargs):
         session.commit()
 
 
-def transactional(*args):
-    def wrap(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            with transacted_session():
-                return f(*args, **kwargs)
-        return wrapper
-    return wrap
+def transactional(scope=TransactionScope.Required):
+    def _transactional(f, *args, **kwargs):
+        with transacted_session():
+            return f(*args, **kwargs)
+    return decorator(_transactional)
 
 
 @transactional()

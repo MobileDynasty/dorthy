@@ -7,7 +7,8 @@ import urllib
 import urllib.parse
 
 from collections import namedtuple
-from functools import partial
+
+from decorator import decorator
 
 from tornado.escape import to_basestring
 from tornado.web import RequestHandler, HTTPError
@@ -37,117 +38,85 @@ class MediaTypes(DeclarativeEnum):
 
 def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
 
-    class _Consumes(object):
+    def _process_camel_case(d):
+        processed = dict()
+        for key, value in d.items():
+            processed[camel_decode(key)] = value
+        return processed
 
-        def __init__(self, method):
-            self._method = method
-            self.__doc__ = method.__doc__
-            self.__name__ = method.__name__
+    def _parse_json(request):
+        s = to_basestring(request.body)
+        if underscore_case:
+            json_dict = json.loads(s, object_hook=_process_camel_case)
+        else:
+            json_dict = json.loads(s)
+        return ObjectDict(json_dict)
 
-        def __get__(self, obj, type=None):
-            return partial(self, obj)
+    def _consumes(f, handler, *args, **kwargs):
 
-        def __call__(self, *args, **kwargs):
-            m_self = args[0]
-            # check for proper content type
-            if not m_self.request.headers.get("Content-Type", "").startswith(media.value):
-                raise HTTPError(400, "Invalid Content-Type received.")
-            if media == MediaTypes.JSON:
-                kwargs[arg_name] = self._parse_json(m_self.request)
+        # check for proper content type
+        if not handler.request.headers.get("Content-Type", "").startswith(media.value):
+            raise HTTPError(400, "Invalid Content-Type received.")
+
+        if media == MediaTypes.JSON:
+            # check keyword args first
+            if arg_name in kwargs:
+                kwargs[arg_name] = _parse_json(handler.request)
             else:
-                raise HTTPError(500, "MediaType not supported.")
-            return self._method(*args, **kwargs)
+                sig = inspect.signature(f)
+                params = sig.parameters
+                for indx, (name, param) in enumerate(params.items()):
+                    if name == arg_name or \
+                            (param.annotation != inspect.Parameter.empty and param.annotation == "model"):
+                        args = list(args)
+                        args[indx - 1] = _parse_json(handler.request)
+                        break
 
-        # def _find_model_argument(self):
-        #
-        #     sig = inspect.signature(self._method)
-        #     params = sig.parameters
-        #
-        #     model_arg_name = None
-        #     for name, param in params.items():
-        #         if name == arg_name:
-        #             model_arg_name = name
-        #         elif param.annotation != inspect.Parameter.empty and param.annotation == "model":
-        #             model_arg_name = name
-        #
-        #         if model_arg_name is not None:
-        #             break
-        #
-        #     if model_arg_name is None:
-        #         raise TypeError("No model argument found in method signature")
-        #
-        #     return model_arg_name
+                    # model param not contained in method signature
+                    if indx == len(args):
+                        raise TypeError("No model argument found in method signature")
+        else:
+            raise HTTPError(500, "MediaType not supported.")
 
-        @staticmethod
-        def _process_camel_case(d):
-            processed = dict()
-            for key, value in d.items():
-                processed[camel_decode(key)] = value
-            return processed
+        return f(handler, *args, **kwargs)
 
-        @staticmethod
-        def _parse_json(request):
-            s = to_basestring(request.body)
-            if underscore_case:
-                json_dict = json.loads(s, object_hook=_Consumes._process_camel_case)
-            else:
-                json_dict = json.loads(s)
-            return ObjectDict(json_dict)
-
-    return _Consumes
+    return decorator(_consumes)
 
 
 def produces(media=MediaTypes.JSON, root=None, camel_case=True, ignore_attributes=None):
 
-    class _Produces(object):
+    def _produces(f, handler, *args, **kwargs):
+        handler.media_type = media
+        handler.set_header("Content-Type", media.value)
+        val = f(handler, *args, **kwargs)
+        if val and not handler.finished:
+            if media == MediaTypes.JSON:
+                handler.write(jsonify(val,
+                                      root=root,
+                                      camel_case=camel_case,
+                                      ignore_attributes=ignore_attributes))
+            elif media == MediaTypes.HTML:
+                handler.write(val)
+        return None
 
-        def __init__(self, method):
-            self.__method = method
-            self.__doc__ = method.__doc__
-            self.__name__ = method.__name__
-
-        def __get__(self, obj, type=None):
-            return partial(self, obj)
-
-        def __call__(self, *args, **kwargs):
-            m_self = args[0]
-            m_self.media_type = media
-            m_self.set_header("Content-Type", media.value)
-            val = self.__method(*args, **kwargs)
-            if val and not m_self.finished:
-                if media == MediaTypes.JSON:
-                    m_self.write(jsonify(val,
-                                         root=root,
-                                         camel_case=camel_case,
-                                         ignore_attributes=ignore_attributes))
-                elif media == MediaTypes.HTML:
-                    m_self.write(val)
-            return None
-
-    return _Produces
+    return decorator(_produces)
 
 
-def render(method):
-
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        val = method(self, *args, **kwargs)
-        if val and not self.finished:
-            if isinstance(val, str):
-                self.render(val)
-            else:
-                self.render(val[0], **val[1])
-    return wrapper
+@decorator
+def render(f, handler, *args, **kwargs):
+    val = f(handler, *args, **kwargs)
+    if val and not handler.finished:
+        if isinstance(val, str):
+            handler.render(val)
+        else:
+            handler.render(val[0], **val[1])
 
 
-def redirect(method):
-
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        val = method(self, *args, **kwargs)
-        if val and not self.finished:
-            self.redirect(val)
-    return wrapper
+@decorator
+def redirect(f, handler, *args, **kwargs):
+    val = f(handler, *args, **kwargs)
+    if val and not handler.finished:
+        handler.redirect(val)
 
 
 class BaseHandler(RequestHandler, WebRequestHandlerProxyMixin):
@@ -370,32 +339,22 @@ class TemplateHandler(BaseHandler):
 
 def authenticated(redirect=False):
 
-    class _Authenticated(object):
-
-        def __init__(self, method):
-            self.__method = method
-            self.__doc__ = method.__doc__
-            self.__name__ = method.__name__
-
-        def __get__(self, obj, type=None):
-            return partial(self, obj)
-
-        def __call__(self, handler, *args, **kwargs):
+    def _authenticated(f, handler, *args, **kwargs):
+        if not SecurityManager().authenticated():
+            SecurityManager().load_context(handler)
             if not SecurityManager().authenticated():
-                SecurityManager().load_context(handler)
-                if not SecurityManager().authenticated():
-                    if redirect and handler.request.method in ("GET", "POST", "HEAD"):
-                        url = handler.get_login_url()
-                        if "?" not in url:
-                            if urllib.parse.urlsplit(url).scheme:
-                                next_url = handler.request.full_url()
-                            else:
-                                next_url = handler.request.uri
-                            url += "?" + urllib.parse.urlencode(dict(next=next_url))
-                        handler.redirect(url)
-                        return
-                    raise HTTPError(401, "User not authorized.")
+                if redirect and handler.request.method in ("GET", "POST", "HEAD"):
+                    url = handler.get_login_url()
+                    if "?" not in url:
+                        if urllib.parse.urlsplit(url).scheme:
+                            next_url = handler.request.full_url()
+                        else:
+                            next_url = handler.request.uri
+                        url += "?" + urllib.parse.urlencode(dict(next=next_url))
+                    handler.redirect(url)
+                    return
+                raise HTTPError(401, "User not authorized.")
 
-            return self.__method(handler, *args, **kwargs)
+        return f(handler, *args, **kwargs)
 
-    return _Authenticated
+    return decorator(_authenticated)
