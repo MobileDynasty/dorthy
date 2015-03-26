@@ -83,7 +83,7 @@ def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
     return decorator(_consumes)
 
 
-def produces(media=MediaTypes.JSON, root=None, camel_case=True, ignore_attributes=None):
+def produces(media=MediaTypes.JSON, root=None, camel_case=True, ignore_attributes=None, wrapper=None):
 
     def _produces(f, handler, *args, **kwargs):
         handler.media_type = media
@@ -91,6 +91,9 @@ def produces(media=MediaTypes.JSON, root=None, camel_case=True, ignore_attribute
         val = f(handler, *args, **kwargs)
         if val and not handler.finished:
             if media == MediaTypes.JSON:
+                if wrapper is None and "produces_wrapper" in handler.application.settings:
+                    wrap_name = handler.application.settings["produces_wrapper"]
+                    val = {wrap_name: val}
                 handler.write(jsonify(val,
                                       root=root,
                                       camel_case=camel_case,
