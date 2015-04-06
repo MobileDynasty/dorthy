@@ -91,9 +91,10 @@ def produces(media=MediaTypes.JSON, root=None, camel_case=True, ignore_attribute
         val = f(handler, *args, **kwargs)
         if val and not handler.finished:
             if media == MediaTypes.JSON:
-                if wrapper is None and "produces_wrapper" in handler.application.settings:
-                    wrap_name = handler.application.settings["produces_wrapper"]
-                    val = {wrap_name: val}
+                if wrapper is not None:
+                    val = {wrapper: val}
+                elif "produces_wrapper" in handler.application.settings:
+                    val = {handler.application.settings["produces_wrapper"]: val}
                 handler.write(jsonify(val,
                                       root=root,
                                       camel_case=camel_case,
