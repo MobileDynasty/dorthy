@@ -53,15 +53,10 @@ class Authority(object):
         return False
 
     def __hash__(self):
-        if not hasattr(self, "_hash"):
-            if not self:
-                value = 0
-            else:
-                value = hash(self.__authority)
-                if self.__permission is not None:
-                    value = (value << 1) ^ hash(self.__permission)
-            self._hash = value
-        return self._hash
+        value = hash(self.__authority)
+        if self.__permission is not None:
+            value = (value << 1) ^ hash(self.__permission)
+        return value
 
     @property
     def authority(self):

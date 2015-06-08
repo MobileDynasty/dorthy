@@ -158,15 +158,10 @@ class Group(object):
         return False
 
     def __hash__(self):
-        if not hasattr(self, "_hash"):
-            if not self:
-                value = 0
-            else:
-                value = hash(self.__name)
-                if self.__group_type is not None:
-                    value = (value << 1) ^ hash(self.__group_type)
-            self._hash = value
-        return self._hash
+        value = hash(self.__name)
+        if self.__group_type is not None:
+            value = (value << 1) ^ hash(self.__group_type)
+        return value
 
     @property
     def name(self):

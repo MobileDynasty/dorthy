@@ -191,7 +191,7 @@ class SessionContext(object):
             session = self.__request_context_scope()
         else:
             session = self.__thread_local_scope()
-        return SessionContext._init_commit_callback(session)
+        return SessionContext._init_session(session)
 
     @property
     def request_context_scoped(self):
@@ -204,7 +204,7 @@ class SessionContext(object):
             self.__thread_local_scope.remove()
 
     @staticmethod
-    def _init_commit_callback(session):
+    def _init_session(session):
         if not hasattr(session, "register_after_commit"):
             session.after_commit_callbacks = []
             session.register_after_commit = lambda cb, handle_error=False: \
