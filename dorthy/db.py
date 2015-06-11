@@ -2,7 +2,6 @@ import logging
 
 from contextlib import contextmanager
 from datetime import datetime
-from functools import wraps
 
 from decorator import decorator
 
@@ -12,6 +11,7 @@ from sqlalchemy.orm.exc import NoResultFound, StaleDataError
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.types import TypeDecorator, SmallInteger
 
+from dorthy.dp import Observable
 from dorthy.enum import DeclarativeEnum
 from dorthy.settings import config
 from dorthy.request import RequestContextManager
@@ -185,13 +185,14 @@ class SessionContext(object):
             _create_scoped_session(scope_func=SessionContext._request_context_scope_func)
         self.__thread_local_scope = \
             _create_scoped_session()
+        self.__observable = Observable()
 
     def __call__(self, *args, **kwargs):
         if self.request_context_scoped:
             session = self.__request_context_scope()
         else:
             session = self.__thread_local_scope()
-        return SessionContext._init_session(session)
+        return self._init_session(session)
 
     @property
     def request_context_scoped(self):
@@ -203,12 +204,20 @@ class SessionContext(object):
         else:
             self.__thread_local_scope.remove()
 
-    @staticmethod
-    def _init_session(session):
+        # call listeners on removed event
+        self.__observable("removed", None)
+
+    def _init_session(self, session):
+
+        # add register after commit method to the session
         if not hasattr(session, "register_after_commit"):
             session.after_commit_callbacks = []
             session.register_after_commit = lambda cb, handle_error=False: \
                 session.after_commit_callbacks.append((cb, handle_error))
+
+        # call listeners on created event
+        self.__observable("created", session)
+
         return session
 
     @staticmethod
@@ -226,6 +235,12 @@ class SessionContext(object):
                 Session.remove()
             except:
                 logger.warn("Failed to remove db session from request context: %s", context.id)
+
+    def contains_listener(self, listener):
+        return listener in self.__observable
+
+    def register_listener(self, listener):
+        self.__observable.register(listener)
 
 
 # Global session for the application
