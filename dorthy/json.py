@@ -146,8 +146,8 @@ def jsonify(obj, root=None, camel_case=False, ignore_attributes=None, sort_keys=
     # add root to the base of ignore_attributes
     if root:
         ignore_attributes = ["{}.{}".format(root, val) for val in ignore_attributes]
-        root = {root: obj}
-    return json.dumps(root,
+        obj = {root: obj}
+    return json.dumps(obj,
                       camel_case=camel_case,
                       ignore_attributes=ignore_attributes,
                       skipkeys=True,
