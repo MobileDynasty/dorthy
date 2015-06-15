@@ -251,7 +251,9 @@ class ExpressionVoter(object):
             not a security expression check expression than AccessVotes.Abstain is returned.
             If the expression is None then returns AccessVotes.Granted.
         """
-        if expression and isinstance(expression, Expression):
+        if expression is None:
+            return AccessVotes.Granted
+        if isinstance(expression, Expression):
             if expression.apply(authentication, attribute, **options):
                 return AccessVotes.Granted
             else:
