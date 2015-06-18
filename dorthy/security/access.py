@@ -222,6 +222,13 @@ class ExpressionVoter(object):
     that expression and the authority.
     """
 
+    def __init__(self, allow_none=True):
+        """
+        Constructor
+        :param allow_none: allows a None expression to be evaluated as Access Granted
+        """
+        self.allow_none = allow_none
+
     def supports(self, expression, attribute=None):
         """Determines if voter is supported based upon the
         attribute it is tied to.
@@ -251,7 +258,7 @@ class ExpressionVoter(object):
             not a security expression check expression than AccessVotes.Abstain is returned.
             If the expression is None then returns AccessVotes.Granted.
         """
-        if expression is None:
+        if expression is None and self.allow_none:
             return AccessVotes.Granted
         if isinstance(expression, Expression):
             if expression.apply(authentication, attribute, **options):
