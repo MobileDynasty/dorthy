@@ -175,6 +175,10 @@ class ObjectDict(dict):
     """Extends dict to provide object attribute get and set access.
     """
 
+    def __delattr__(self, name):
+        if name in self:
+            del self[name]
+
     def __getattr__(self, name):
         try:
             return self[name]
