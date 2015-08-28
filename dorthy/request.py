@@ -182,7 +182,7 @@ class ProxyHandlerMetaClass(type):
 class SocketHandlerProxyMixin(metaclass=ProxyHandlerMetaClass):
 
     STORE_CONTEXT_ON_OBJECT = True
-    PROXY_METHODS = ("on_open", "on_message", "on_close")
+    PROXY_METHODS = ("open", "on_message", "on_close")
 
 
 class WebRequestHandlerProxyMixin(metaclass=ProxyHandlerMetaClass):
