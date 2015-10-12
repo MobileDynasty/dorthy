@@ -37,3 +37,6 @@ atlassian-ide-plugin.xml
 
 # OS X stuff
 *.DS_Store
+
+.cache
+
