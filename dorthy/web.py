@@ -1,4 +1,3 @@
-import functools
 import inspect
 import json
 import logging
@@ -36,7 +35,7 @@ class MediaTypes(DeclarativeEnum):
     JSON = "application/json"
 
 
-def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
+def consumes(media=MediaTypes.JSON, arg_name="model", request_arg=None, underscore_case=True):
 
     def _process_camel_case(d):
         processed = dict()
@@ -44,8 +43,11 @@ def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
             processed[camel_decode(key)] = value
         return processed
 
-    def _parse_json(request):
-        s = to_basestring(request.body)
+    def _parse_json(handler):
+        if request_arg is None:
+            s = to_basestring(handler.request.body)
+        else:
+            s = to_basestring(handler.get_argument(request_arg))
         if underscore_case:
             json_dict = json.loads(s, object_hook=_process_camel_case)
         else:
@@ -54,14 +56,15 @@ def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
 
     def _consumes(f, handler, *args, **kwargs):
 
-        # check for proper content type
-        if not handler.request.headers.get("Content-Type", "").startswith(media.value):
+        # check for proper content type if request_arg is not set
+        # if request_arg is set assume mixed content -- i.e. files and data
+        if request_arg is None and not handler.request.headers.get("Content-Type", "").startswith(media.value):
             raise HTTPError(400, "Invalid Content-Type received.")
 
         if media == MediaTypes.JSON:
             # check keyword args first
             if arg_name in kwargs:
-                kwargs[arg_name] = _parse_json(handler.request)
+                kwargs[arg_name] = _parse_json(handler)
             else:
                 sig = inspect.signature(f)
                 params = sig.parameters
@@ -69,7 +72,7 @@ def consumes(media=MediaTypes.JSON, arg_name="model", underscore_case=True):
                     if name == arg_name or \
                             (param.annotation != inspect.Parameter.empty and param.annotation == "model"):
                         args = list(args)
-                        args[indx - 1] = _parse_json(handler.request)
+                        args[indx - 1] = _parse_json(handler)
                         break
 
                     # model param not contained in method signature

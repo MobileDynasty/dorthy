@@ -43,10 +43,10 @@ _request_store = RequestLocalStore()
 
 class RequestContext(MutableMapping):
 
-    def __init__(self):
+    def __init__(self, values=None, immutables=None):
         self.__active = False
-        self.__store = dict()
-        self.__immutable = set()
+        self.__store = dict() if values is None else values.copy()
+        self.__immutables = set() if immutables is None else immutables.copy()
         self.__observable = Observable()
 
     def __contains__(self, item):
@@ -78,8 +78,18 @@ class RequestContext(MutableMapping):
         return id(self)
 
     def __check_immutable(self, key):
-        if key in self.__immutable:
+        if key in self.__immutables:
             raise ValueError("The value is immutable and cannot be changed.")
+
+    def clone(self):
+        """
+        Clones the RequestContext creating a new RequestContext with the data
+        copied from the original.  Observables / callbacks are not copied in the
+        cloning process.
+
+        :return: a new RequestContext
+        """
+        return RequestContext(values=self.__store, immutables=self.__immutables)
 
     def immutable(self, key, value):
         """Sets the given value and makes it immutable for the
@@ -88,7 +98,7 @@ class RequestContext(MutableMapping):
         """
         self.__check_immutable(key)
         self[key] = value
-        self.__immutable.add(key)
+        self.__immutables.add(key)
 
     def contains_listener(self, listener):
         return listener in self.__observable

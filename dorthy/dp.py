@@ -28,6 +28,8 @@ class Singleton(object):
             return self.__instance
         except AttributeError:
             self.__instance = self.__decorated_class()
+            if hasattr(self.__instance, "initialize"):
+                self.__instance.initialize()
             return self.__instance
 
 
