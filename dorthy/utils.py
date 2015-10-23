@@ -3,9 +3,12 @@ from pytz import timezone, utc
 
 import datetime
 import email.utils
+import json
 import inspect
 import re
 import time
+
+from .dp import ObjectDict
 
 
 def native_str(x, encoding="utf-8", errors="ignore", default=None):
@@ -177,3 +180,19 @@ class Switch(object):
             if f is None:
                 raise NotImplementedError("No default case found for case: " + xstr(case))
         f(*args, **kwargs)
+
+
+def _process_camel_case(d):
+    processed = dict()
+    for key, value in d.items():
+        processed[camel_decode(key)] = value
+    return processed
+
+
+def parse_json(s, underscore_case=True, object_dict_wrapper=True):
+    if underscore_case:
+        json_dict = json.loads(s, object_hook=_process_camel_case)
+    else:
+        json_dict = json.loads(s)
+    return ObjectDict(json_dict) if object_dict_wrapper else json_dict
+

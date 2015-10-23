@@ -1,5 +1,4 @@
 import inspect
-import json
 import logging
 import traceback
 import urllib
@@ -13,14 +12,13 @@ from tornado.escape import to_basestring
 from tornado.web import RequestHandler, HTTPError
 
 from dorthy import template
-from dorthy.dp import ObjectDict
 from dorthy.enum import DeclarativeEnum
 from dorthy.json import jsonify
 from dorthy.session import session_store, Session
 from dorthy.request import WebRequestHandlerProxyMixin
 from dorthy.security import SecurityManager, AccessDeniedError, AuthenticationException
 from dorthy.settings import config
-from dorthy.utils import camel_decode, native_str
+from dorthy.utils import native_str, parse_json
 
 
 logger = logging.getLogger(__name__)
@@ -35,24 +33,19 @@ class MediaTypes(DeclarativeEnum):
     JSON = "application/json"
 
 
-def consumes(media=MediaTypes.JSON, arg_name="model", request_arg=None, underscore_case=True):
-
-    def _process_camel_case(d):
-        processed = dict()
-        for key, value in d.items():
-            processed[camel_decode(key)] = value
-        return processed
+def consumes(media=MediaTypes.JSON, arg_name="model",
+             request_arg=None, optional_request_arg=False, underscore_case=True, object_dict_wrapper=True):
 
     def _parse_json(handler):
         if request_arg is None:
             s = to_basestring(handler.request.body)
         else:
-            s = to_basestring(handler.get_argument(request_arg))
-        if underscore_case:
-            json_dict = json.loads(s, object_hook=_process_camel_case)
-        else:
-            json_dict = json.loads(s)
-        return ObjectDict(json_dict)
+            arg = handler.get_argument(request_arg, None)
+            if arg is None and not optional_request_arg:
+                raise HTTPError(400, "Argument missing: {}".format(request_arg))
+            s = to_basestring(arg)
+        return parse_json(s, underscore_case=underscore_case, object_dict_wrapper=object_dict_wrapper) \
+            if s is not None else s
 
     def _consumes(f, handler, *args, **kwargs):
 
@@ -90,23 +83,24 @@ def produces(media=MediaTypes.JSON, root=None, camel_case=True, ignore_attribute
 
     def _produces(f, handler, *args, **kwargs):
         handler.media_type = media
-        handler.set_header("Content-Type", media.value)
-        val = f(handler, *args, **kwargs)
-        if val and not handler.finished:
-            if media == MediaTypes.JSON:
-                if root is None and "produces_wrapper" in handler.application.settings:
-                    root_wrapper = handler.application.settings["produces_wrapper"]
-                else:
-                    root_wrapper = root
-                handler.write(jsonify(val,
-                                      root=root_wrapper,
-                                      camel_case=camel_case,
-                                      ignore_attributes=ignore_attributes))
-            elif media == MediaTypes.HTML:
-                handler.write(val)
-        return None
+        result = f(handler, *args, **kwargs)
+        handler.write_results(result,
+                              media=media,
+                              root=root,
+                              camel_case=camel_case,
+                              ignore_attributes=ignore_attributes)
 
     return decorator(_produces)
+
+
+def mediatype(media=MediaTypes.JSON):
+
+    def _mediatype(f, handler, *args, **kwargs):
+        handler.media_type = media
+        handler.set_header("Content-Type", media.value)
+        return f(handler, *args, **kwargs)
+
+    return decorator(_mediatype)
 
 
 @decorator
@@ -330,6 +324,22 @@ class BaseHandler(RequestHandler, WebRequestHandlerProxyMixin):
                 self.render("error/error-dev.html", error=error)
             else:
                 self.render("error/error.html", error=error)
+
+    def write_results(self, results, media=MediaTypes.JSON, root=None, camel_case=True, ignore_attributes=None):
+        self.media_type = media
+        self.set_header("Content-Type", media.value)
+        if results and not self.finished:
+            if media == MediaTypes.JSON:
+                if root is None and "produces_wrapper" in self.application.settings:
+                    root_wrapper = self.application.settings["produces_wrapper"]
+                else:
+                    root_wrapper = root
+                self.write(jsonify(results,
+                                   root=root_wrapper,
+                                   camel_case=camel_case,
+                                   ignore_attributes=ignore_attributes))
+            elif media == MediaTypes.HTML:
+                self.write(results)
 
 
 class TemplateHandler(BaseHandler):
