@@ -45,6 +45,10 @@ def int_parse(x, default=None):
         return default
 
 
+def is_int(x):
+    return int_parse(x, default=None) is not None
+
+
 def trunc(s, length=-1, strip=True, ellipsis=False, convert_to_none=True):
     """
     Truncates a string to the given length. If strip is
