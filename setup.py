@@ -1,19 +1,20 @@
+import os
+
 from distutils.core import setup
 from setuptools import find_packages
 
-version = "0.6.5"
+version = "0.6.6"
 
-install_requires = [
-    "PyYAML",
-    "tornado",
-    "redis",
-    "raven",
-    "pycrypto",
-    "SQLAlchemy",
-    "jinja2",
-    "py3k-bcrypt",
-    "pytz"
-]
+
+def strip_comments(l):
+    return l.split('#', 1)[0].strip()
+
+
+def reqs(f):
+    return list(filter(None, [strip_comments(l) for l in open(
+        os.path.join(os.getcwd(), f)).readlines()]))
+
+install_requires = reqs("requirements.txt")
 
 setup(
     name='dorthy',
