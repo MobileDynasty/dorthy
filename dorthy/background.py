@@ -1,4 +1,5 @@
 import logging
+import os
 
 from concurrent.futures.process import ProcessPoolExecutor
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -13,8 +14,8 @@ from decorator import decorator
 
 logger = logging.getLogger(__name__)
 
-max_threads = config.background.max_threads if "background.max_threads" in config else None
-max_processes = config.background.max_processes if "background.max_processes" in config else None
+max_threads = config.background.max_threads if "background.max_threads" in config else (os.cpu_count() or 1) * 5
+max_processes = config.background.max_processes if "background.max_processes" in config else os.cpu_count() or 1
 
 
 @Singleton

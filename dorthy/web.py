@@ -387,11 +387,12 @@ def authenticated(redirect=False, allow_header_auth=False):
                 if parts[0] and parts[2]:
                     token = AuthorizationHeaderToken(parts[0], parts[2].strip())
                     auth_provider = SecurityManager().get_authentication_provider(token)
-                    if not auth_provider:
-                        raise AuthenticationException("No authentication provider found.")
-                    auth_provider.authenticate(token)
-                    if SecurityManager().authenticated():
-                        return True
+                    if auth_provider:
+                        auth_provider.authenticate(token)
+                        if SecurityManager().authenticated():
+                            return True
+                    else:
+                        logger.warn("No authentication provider found for header: %s", auth)
         return False
 
     return decorator(_authenticated)
