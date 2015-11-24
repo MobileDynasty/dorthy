@@ -1,0 +1,6 @@
+include README.md
+include MANIFEST.in
+include setup.cfg
+include setup.py
+include requirements.txt
+prune *.pyc

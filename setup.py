@@ -3,7 +3,7 @@ import os
 from distutils.core import setup
 from setuptools import find_packages
 
-version = "0.6.6"
+version = "0.6.7"
 
 
 def strip_comments(l):
@@ -19,7 +19,7 @@ install_requires = reqs("requirements.txt")
 setup(
     name='dorthy',
     version=version,
-    packages=find_packages(),
+    packages=find_packages(exclude=['ez_setup', 'tests', 'tests.*']),
     url='https://github.com/MobileDynasty/dorthy',
     author='dev@mobile-dynasty.com',
     author_email='dev@mobile-dynasty.com',
