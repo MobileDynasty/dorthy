@@ -5,6 +5,21 @@ from .core import AuthenticationException
 logger = logging.getLogger(__name__)
 
 
+class AuthorizationHeaderToken(object):
+
+    def __init__(self, scheme, token):
+        self.__scheme = scheme
+        self.__token = token
+
+    @property
+    def scheme(self):
+        return self.__scheme
+
+    @property
+    def token(self):
+        return self.__token
+
+
 class UsernamePasswordAuthenticationToken(object):
 
     def __init__(self, username, password):
@@ -47,5 +62,4 @@ class AbstractUserTokenAuthenticationProvider(object):
 
     def _authenticate_user(self, authentication_token):
         raise NotImplementedError
-
 

@@ -14,6 +14,7 @@ from tornado.web import RequestHandler, HTTPError
 from dorthy import template
 from dorthy.enum import DeclarativeEnum
 from dorthy.json import jsonify
+from dorthy.security.auth import AuthorizationHeaderToken
 from dorthy.session import session_store, Session
 from dorthy.request import WebRequestHandlerProxyMixin
 from dorthy.security import SecurityManager, AccessDeniedError, AuthenticationException
@@ -354,12 +355,14 @@ class TemplateHandler(BaseHandler):
         self.render(self.template)
 
 
-def authenticated(redirect=False):
+def authenticated(redirect=False, allow_header_auth=False):
 
     def _authenticated(f, handler, *args, **kwargs):
         if not SecurityManager().authenticated():
             SecurityManager().load_context(handler)
             if not SecurityManager().authenticated():
+                if allow_header_auth and authenticate_token(handler.request):
+                    return
                 if redirect and handler.request.method in ("GET", "POST", "HEAD"):
                     url = handler.get_login_url()
                     if "?" not in url:
@@ -370,8 +373,25 @@ def authenticated(redirect=False):
                         url += "?" + urllib.parse.urlencode(dict(next=next_url))
                     handler.redirect(url)
                     return
-                raise HTTPError(401, "User not authorized.")
+                raise AuthenticationException("User not authorized.")
 
         return f(handler, *args, **kwargs)
+
+    def authenticate_token(request):
+        if "Authorization" in request.headers:
+            auth_headers = request.headers.get_list("Authorization")
+            # only support one auth header in a request
+            if len(auth_headers) == 1:
+                auth = auth_headers[0]
+                parts = auth.strip().partition(" ")
+                if parts[0] and parts[2]:
+                    token = AuthorizationHeaderToken(parts[0], parts[2].strip())
+                    auth_provider = SecurityManager().get_authentication_provider(token)
+                    if not auth_provider:
+                        raise AuthenticationException("No authentication provider found.")
+                    auth_provider.authenticate(token)
+                    if SecurityManager().authenticated():
+                        return True
+        return False
 
     return decorator(_authenticated)
