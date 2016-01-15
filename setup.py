@@ -3,7 +3,7 @@ import os
 from distutils.core import setup
 from setuptools import find_packages
 
-version = "0.6.7"
+version = "0.7.0"
 
 
 def strip_comments(l):

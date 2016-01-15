@@ -270,18 +270,28 @@ class ExpressionVoter(object):
 
 class BaseDecisionManager(object):
 
-    def __init__(self, allow_all_abstain=False):
+    def __init__(self, allow_all_abstain=False, cascade_authorization=True):
         self.__allow_all_abstain = allow_all_abstain
+        self.__cascade_authorization = cascade_authorization
 
     @property
     def allow_all_abstain(self):
         return self.__allow_all_abstain
 
+    @property
+    def cascade_authorization(self):
+        return self.__cascade_authorization
+
     def supports(self, expression, attribute=None):
         return True
 
-    def decide(self, authentication, expression, attribute=None, **options):
+    def decide(self, authentication, expression, access_history, attribute=None, **options):
         raise NotImplementedError()
+
+    @staticmethod
+    def previously_authorized(access_history):
+        # first access will be contained in the access history list i.e. len = 1
+        return len(access_history) > 1
 
 
 class UnanimousDecisionManager(BaseDecisionManager):
@@ -289,7 +299,7 @@ class UnanimousDecisionManager(BaseDecisionManager):
     abstain -- one AccessVote.Denied will deny access for the authentication.
     """
 
-    def __init__(self, voters, allow_all_abstain=False):
+    def __init__(self, voters, allow_all_abstain=False, cascade_authorization=True):
         """Creates a new decision manager.
 
         Args:
@@ -297,13 +307,13 @@ class UnanimousDecisionManager(BaseDecisionManager):
             single voter or an iterable collection of voters.
         """
         assert voters, "Cannot initialize without voters."
-        super().__init__(allow_all_abstain)
+        super().__init__(allow_all_abstain=allow_all_abstain, cascade_authorization=cascade_authorization)
         if not isinstance(voters, Iterable):
             self.__voters = [voters]
         else:
             self.__voters = voters
 
-    def decide(self, authentication, expression, attribute=None, **options):
+    def decide(self, authentication, expression, access_history, attribute=None, **options):
         """Decides whether the authentication is allowed to access the attribute given
         the security expression.
 
@@ -311,6 +321,7 @@ class UnanimousDecisionManager(BaseDecisionManager):
             authentication (Authentication): the authentication
             expression: the security expression
             attribute (object): the calling attribute if avaiplatle
+            access_history (list): the access history
             options: key-work options
 
         Raises:
@@ -319,30 +330,30 @@ class UnanimousDecisionManager(BaseDecisionManager):
         if not self.supports(expression, attribute):
             raise AccessDeniedError()
 
-        if authentication:
-            abstains = 0
-            for voter in self.__voters:
-                if voter.supports(expression, attribute):
-                    vote = voter.vote(authentication, expression, attribute=attribute, **options)
-                    if vote == AccessVotes.Denied:
-                        raise AccessDeniedError()
-                    if vote == AccessVotes.Abstain:
-                        abstains += 1
-                else:
+        if not self.cascade_authorization and self.previously_authorized(access_history):
+            return
+
+        abstains = 0
+        for voter in self.__voters:
+            if voter.supports(expression, attribute):
+                vote = voter.vote(authentication, expression, attribute=attribute, **options)
+                if vote == AccessVotes.Denied:
+                    raise AccessDeniedError()
+                if vote == AccessVotes.Abstain:
                     abstains += 1
+            else:
+                abstains += 1
 
-            if not self.allow_all_abstain and abstains == len(self.__voters):
-                raise AccessDeniedError()
-
-        else:
-            raise AccessDeniedError("Not authenticated")
+        # TODO: fix the iterable problem
+        if not self.allow_all_abstain and abstains == len(self.__voters):
+            raise AccessDeniedError()
 
 
 class SuperUserDecisionManager(UnanimousDecisionManager):
     """A decision manager that grants access to a super user.
     """
 
-    def __init__(self, super_voter, voters, allow_all_abstain=False):
+    def __init__(self, super_voter, voters, allow_all_abstain=False, cascade_authorization=True):
         """Creates a new decision manager.
 
         Args:
@@ -351,10 +362,10 @@ class SuperUserDecisionManager(UnanimousDecisionManager):
             single voter or an iterable collection of voters.
         """
         assert super_voter, "Cannot initialize without a super voter."
-        super().__init__(voters, allow_all_abstain)
+        super().__init__(allow_all_abstain=allow_all_abstain, cascade_authorization=cascade_authorization)
         self.__super_voter = super_voter
 
-    def decide(self, authentication, expression, attribute=None, **options):
+    def decide(self, authentication, expression, access_history, attribute=None, **options):
         """Decides whether the authentication is allowed to access the attribute given
         the security expression.
 
@@ -362,20 +373,19 @@ class SuperUserDecisionManager(UnanimousDecisionManager):
             authentication (Authentication): the authentication
             expression: the security expression
             attribute (object): the calling attribute if available
+            access_history (list): the access history
             options: key-work options
 
         Raises:
             AccessDeniedError: authentication is denied access
         """
 
-        if authentication:
-            # check to see if admin access is granted
-            if self.__super_voter.supports(expression, attribute) and \
-                    self.__super_voter.vote(
-                        authentication, expression, attribute=attribute, **options) == AccessVotes.Granted:
-                return
+        # check to see if admin access is granted
+        if self.__super_voter.supports(expression, attribute) and \
+                self.__super_voter.vote(
+                    authentication, expression, attribute=attribute, **options) == AccessVotes.Granted:
+            return
 
-            # check with the rest of the voters
-            super().decide(authentication, expression, attribute=attribute, **options)
-        else:
-            raise AccessDeniedError("Not authenticated")
+        # check with the rest of the voters
+        super().decide(authentication, expression, attribute=attribute, **options)
+

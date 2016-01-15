@@ -1,4 +1,7 @@
 import base64
+import threading
+from abc import ABCMeta, abstractproperty
+
 import json
 import logging
 import inspect
@@ -368,6 +371,63 @@ SECURITY_MANAGER_DEFAULTS = {
 }
 
 
+class ThreadLocalAccessHistory(threading.local):
+
+    def __init__(self):
+        super().__init__()
+        self.__history = list()
+
+    @property
+    def history(self):
+        return self.__history
+
+    def release(self):
+        del self.__history[:]
+
+_local_access_history = ThreadLocalAccessHistory()
+
+
+class RequestContextAccessHistory(object):
+
+    CONTEXT_KEY = "_access_history"
+
+    @property
+    def history(self):
+        rc = RequestContextManager.get_context()
+        if self.CONTEXT_KEY not in rc:
+            access_history = list()
+            rc.immutable(self.CONTEXT_KEY, access_history)
+        else:
+            access_history = rc[self.CONTEXT_KEY]
+        return access_history
+
+    def release(self):
+        del self.history[:]
+
+
+class AccessHistory(object):
+
+    def __init__(self):
+        self.__request_store = RequestContextAccessHistory()
+
+    def __len__(self):
+        return len(self.get_requests())
+
+    def get_requests(self):
+        access_store = self.__request_store if RequestContextManager.active() else _local_access_history
+        return access_store.history
+
+    def pop_request(self):
+        self.get_requests().pop()
+
+    def push_request(self, access_request):
+        self.get_requests().append(access_request)
+
+
+AccessRequest = namedtuple("AccessRequest",
+                           ["expression", "authorized_attribute"])
+
+
 @Singleton
 class SecurityManager(object):
 
@@ -376,6 +436,7 @@ class SecurityManager(object):
 
     def __init__(self):
         self.config_from_object(SECURITY_MANAGER_DEFAULTS, inherit=False)
+        self.__access_history = AccessHistory()
 
     def config_from_object(self, obj, inherit=True):
         if inspect.ismodule(obj):
@@ -397,6 +458,10 @@ class SecurityManager(object):
     @property
     def access_decision_manager(self):
         return self.__config["ACCESS_DECISION_MANAGER"]
+
+    @property
+    def access_history(self):
+        return self.__access_history
 
     @property
     def security_context_repository(self):
@@ -441,7 +506,8 @@ class SecurityManager(object):
     def authorized(self, expression, attribute=None):
         self.access_decision_manager.decide(self.get_authentication(),
                                             expression,
-                                            attribute,
+                                            self.access_history,
+                                            attribute=attribute,
                                             **self.options)
 
     def clear_context(self, *args, **kwargs):
@@ -475,36 +541,49 @@ def authorized(expression=None, arg_name="authentication"):
     """
     def _authorized(f, *args, **kwargs):
 
-        if expression is None and not SecurityManager().authenticated():
-            raise AuthenticationException("Not Authenticated")
-        else:
-            attribute = AuthorizedAttribute(f=f, args=args, kwargs=kwargs)
-            SecurityManager().authorized(expression, attribute=attribute)
+        authorized_attribute = AuthorizedAttribute(f=f, args=args, kwargs=kwargs)
+        with authorized_context(expression=expression, authorized_attribute=authorized_attribute) as authentication:
 
-        if arg_name in kwargs:
-            kwargs[arg_name] = SecurityManager().get_authentication()
-        else:
-            sig = inspect.signature(f)
-            params = sig.parameters
-            for indx, (name, param) in enumerate(params.items()):
-                if indx == len(args):
-                    break
-                if name == arg_name or \
-                        (param.annotation != inspect.Parameter.empty and param.annotation == "auth"):
-                    args = list(args)
-                    args[indx] = SecurityManager().get_authentication()
-                    break
+            # passes the authentication object to the method call if it exists in the args or kwargs
+            if arg_name in kwargs:
+                kwargs[arg_name] = authentication
+            else:
+                sig = inspect.signature(f)
+                params = sig.parameters
+                for indx, (name, param) in enumerate(params.items()):
+                    if indx == len(args):
+                        break
+                    if name == arg_name or \
+                            (param.annotation != inspect.Parameter.empty and param.annotation == "auth"):
+                        args = list(args)
+                        args[indx] = authentication
+                        break
 
-        return f(*args, **kwargs)
+            return f(*args, **kwargs)
 
     return decorator(_authorized)
 
 
 @contextmanager
-def authorized_context(expression=None):
+def authorized_context(expression=None, authorized_attribute=None):
     """
     Authorized context
     :param expression: the expression
+    :param authorized_attribute: authorized attributes
     """
-    SecurityManager().authorized(expression)
-    yield SecurityManager().get_authentication()
+
+    if not SecurityManager().authenticated():
+        raise AuthenticationException("Not Authenticated")
+
+    access_history = SecurityManager().access_history
+    access_history.push_request(AccessRequest(expression=expression, authorized_attribute=authorized_attribute))
+
+    try:
+        if expression is not None:
+            SecurityManager().authorized(expression, attribute=authorized_attribute)
+
+        yield SecurityManager().get_authentication()
+
+    finally:
+        access_history.pop_request()
+

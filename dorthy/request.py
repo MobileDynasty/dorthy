@@ -195,6 +195,11 @@ class SocketHandlerProxyMixin(metaclass=ProxyHandlerMetaClass):
     PROXY_METHODS = ("open", "on_message", "on_close")
 
 
+class SocketRequestHandlerProxyMixin(metaclass=ProxyHandlerMetaClass):
+
+    PROXY_METHODS = "on_message"
+
+
 class WebRequestHandlerProxyMixin(metaclass=ProxyHandlerMetaClass):
 
     PROXY_METHODS = "_execute"
