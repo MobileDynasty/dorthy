@@ -1,6 +1,5 @@
 import base64
 import threading
-from abc import ABCMeta, abstractproperty
 
 import json
 import logging
