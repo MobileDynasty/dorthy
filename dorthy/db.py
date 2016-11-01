@@ -5,10 +5,11 @@ from datetime import datetime
 
 from decorator import decorator
 
-from sqlalchemy import orm, create_engine, BigInteger, Column, DateTime, Integer, event, exc, String
+from sqlalchemy import orm, create_engine, BigInteger, Column, DateTime, Integer, event, exc, func, String
 from sqlalchemy.pool import Pool
 from sqlalchemy.orm.exc import NoResultFound, StaleDataError
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
+from sqlalchemy.ext.hybrid import Comparator
 from sqlalchemy.types import TypeDecorator, SmallInteger
 
 from dorthy.dp import Observable
@@ -149,6 +150,12 @@ def delete(entity_type, entity_id):
 def delete_versioned(entity_type, entity_id, version_id):
     entity = find_by_id_versioned(entity_type, entity_id, version_id)
     Session().delete(entity)
+
+
+class CaseInsensitiveComparator(Comparator):
+
+    def __eq__(self, other):
+        return func.lower(self.__clause_element__()) == func.lower(other)
 
 
 def _create_engine():

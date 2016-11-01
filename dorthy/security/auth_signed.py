@@ -53,10 +53,10 @@ class AbstractSignedRequestAuthenticationProvider(object):
         self._authenticate_user(authentication_token)
 
     def _authenticate_user(self, authentication_token):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def _get_signing_key(self, authentication_token):
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 def sign_http_request(verb, uri_path, timestamp, signing_key, content_md5=None, query=None, encoding=None):

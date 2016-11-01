@@ -45,8 +45,7 @@ def consumes(media=MediaTypes.JSON, arg_name="model",
             if arg is None and not optional_request_arg:
                 raise HTTPError(400, "Argument missing: {}".format(request_arg))
             s = to_basestring(arg)
-        return parse_json(s, underscore_case=underscore_case, object_dict_wrapper=object_dict_wrapper) \
-            if s is not None else s
+        return parse_json(s, underscore_case=underscore_case, object_dict_wrapper=object_dict_wrapper) if s else None
 
     def _consumes(f, handler, *args, **kwargs):
 
@@ -361,8 +360,8 @@ def authenticated(redirect=False, allow_header_auth=False):
         if not SecurityManager().authenticated():
             SecurityManager().load_context(handler)
             if not SecurityManager().authenticated():
-                if allow_header_auth and authenticate_token(handler.request):
-                    return
+                if allow_header_auth and authenticate_token(handler):
+                    return f(handler, *args, **kwargs)
                 if redirect and handler.request.method in ("GET", "POST", "HEAD"):
                     url = handler.get_login_url()
                     if "?" not in url:
@@ -377,15 +376,15 @@ def authenticated(redirect=False, allow_header_auth=False):
 
         return f(handler, *args, **kwargs)
 
-    def authenticate_token(request):
-        if "Authorization" in request.headers:
-            auth_headers = request.headers.get_list("Authorization")
+    def authenticate_token(handler):
+        if "Authorization" in handler.request.headers:
+            auth_headers = handler.request.headers.get_list("Authorization")
             # only support one auth header in a request
             if len(auth_headers) == 1:
                 auth = auth_headers[0]
                 parts = auth.strip().partition(" ")
                 if parts[0] and parts[2]:
-                    token = AuthorizationHeaderToken(parts[0], parts[2].strip())
+                    token = AuthorizationHeaderToken(parts[0], parts[2].strip(), handler)
                     auth_provider = SecurityManager().get_authentication_provider(token)
                     if auth_provider:
                         auth_provider.authenticate(token)

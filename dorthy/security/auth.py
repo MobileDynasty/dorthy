@@ -7,9 +7,10 @@ logger = logging.getLogger(__name__)
 
 class AuthorizationHeaderToken(object):
 
-    def __init__(self, scheme, token):
+    def __init__(self, scheme, token, handler):
         self.__scheme = scheme
         self.__token = token
+        self.__handler = handler
 
     @property
     def scheme(self):
@@ -18,6 +19,10 @@ class AuthorizationHeaderToken(object):
     @property
     def token(self):
         return self.__token
+
+    @property
+    def handler(self):
+        return self.__handler
 
 
 class UsernamePasswordAuthenticationToken(object):
@@ -61,5 +66,5 @@ class AbstractUserTokenAuthenticationProvider(object):
         self._authenticate_user(authentication_token)
 
     def _authenticate_user(self, authentication_token):
-        raise NotImplementedError
+        raise NotImplementedError()
 

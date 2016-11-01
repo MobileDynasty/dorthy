@@ -118,7 +118,7 @@ class Expression(object):
         return NotExpression(self)
 
     def apply(self, authentication, attribute, **options):
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 class NotExpression(Expression):

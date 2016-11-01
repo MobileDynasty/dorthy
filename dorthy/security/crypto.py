@@ -80,7 +80,6 @@ decrypt = partial(aes_decrypt, private_key)
 class PasswordEncryptionAlgorithms(DeclarativeEnum):
 
     BCrypt = "1",
-    SHA1 = "2",
 
 
 def encrypt_password(password, encryption_algorithm=PasswordEncryptionAlgorithms.BCrypt):
@@ -89,16 +88,58 @@ def encrypt_password(password, encryption_algorithm=PasswordEncryptionAlgorithms
 
     if encryption_algorithm == PasswordEncryptionAlgorithms.BCrypt:
         return bcrypt.hashpw(password, bcrypt.gensalt()) if password else None
-    elif encryption_algorithm == PasswordEncryptionAlgorithms.SHA1:
-        m = hashlib.sha1()
-        m.update(password.encode('utf-8'))
-        return codecs.encode(m.digest(), 'hex_codec').decode("utf-8")
     else:
-        raise NotImplemented
+        raise NotImplementedError()
 
 
 def validate_password(password, token, encryption_algorithm=PasswordEncryptionAlgorithms.BCrypt):
     if encryption_algorithm == PasswordEncryptionAlgorithms.BCrypt:
         return bcrypt.hashpw(password, token) == token
     else:
-        raise NotImplemented
+        raise NotImplementedError()
+
+
+class SecureHashAlgorithms(DeclarativeEnum):
+
+    SHA1 = "1",
+    SHA2 = "2"
+
+
+def secure_hash(data, hash_algorithm=SecureHashAlgorithms.SHA2):
+    b = data.encode("utf-8") if isinstance(data, str) else data
+    if hash_algorithm == SecureHashAlgorithms.SHA1:
+        m = hashlib.sha1()
+        m.update(b)
+        return codecs.encode(m.digest(), "hex_codec").decode("utf-8")
+    elif hash_algorithm == SecureHashAlgorithms.SHA2:
+        m = hashlib.sha256()
+        m.update(b)
+        return codecs.encode(m.digest(), "hex_codec").decode("utf-8")
+    else:
+        raise NotImplementedError()
+
+
+def secure_salted_hash(data, hash_algorithm=SecureHashAlgorithms.SHA2, salt=None):
+    if not salt:
+        salt = generate_id(chars=string.ascii_lowercase + string.digits, size=12)
+    return secure_hash(data + salt, hash_algorithm=hash_algorithm), salt
+
+
+def valid_hash(stored_hash, token, hash_algorithm=SecureHashAlgorithms.SHA2):
+    if hash_algorithm == SecureHashAlgorithms.SHA1:
+        h = stored_hash[0:40]
+        if len(stored_hash) > 40:
+            # contains a salt
+            salt = stored_hash[40:]
+            token += salt
+        return secure_hash(token, hash_algorithm=SecureHashAlgorithms.SHA1) == h
+    elif hash_algorithm == SecureHashAlgorithms.SHA2:
+        h = stored_hash[0:64]
+        if len(stored_hash) > 64:
+            # contains a salt
+            salt = stored_hash[64:]
+            token += salt
+        return secure_hash(token, hash_algorithm=SecureHashAlgorithms.SHA2) == h
+    else:
+        raise NotImplementedError()
+
