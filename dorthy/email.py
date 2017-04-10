@@ -52,10 +52,15 @@ def send_message(to_address, from_address=default_from, subject=None,
     else:
         s = None
         try:
-            s = smtplib.SMTP(host=config.mail.host, port=config.mail.get("port", 25))
+            use_ssl = "use_ssl" in config.mail and config.mail.enabled("use_ssl")
+            if use_ssl:
+                s = smtplib.SMTP_SSL(host=config.mail.host, port=config.mail.get("port", 465))
+            else:
+                s = smtplib.SMTP(host=config.mail.host, port=config.mail.get("port", 25))
+
             if config.mail.enabled("debug"):
                 s.set_debuglevel(1)
-            if config.mail.enabled("use_starttls"):
+            if not use_ssl and config.mail.enabled("use_starttls"):
                 s.starttls()
 
             s.login(config.mail.username, config.mail.password)
