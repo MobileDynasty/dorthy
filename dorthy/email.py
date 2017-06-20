@@ -15,12 +15,14 @@ default_from = config.mail.from_address
 default_reply_to = config.mail.get("reply_to_address")
 log_message = config.mail.enabled("log_message")
 
-if config.mail.templates[0] == "/":
-    _template_path = config.mail.templates
-else:
-    _template_path = (os.path.join(os.getcwd(), config.mail.templates))
+_template_paths = []
+for path in config.mail.templates:
+    if path.startswith('/'):
+        _template_paths.append(path)
+    else:
+        _template_paths.append((os.path.join(os.getcwd(), path)))
 
-template_env = Environment(loader=FileSystemLoader(_template_path))
+template_env = Environment(loader=FileSystemLoader(_template_paths))
 
 
 def _get_template(template_name, extension):
