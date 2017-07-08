@@ -357,6 +357,11 @@ class TemplateHandler(BaseHandler):
 def authenticated(redirect=False, allow_header_auth=False):
 
     def _authenticated(f, handler, *args, **kwargs):
+
+        if handler.request.method == "OPTIONS":
+            """ Options method should not be authenticated """
+            return f(handler, *args, **kwargs)
+
         if not SecurityManager().authenticated():
             SecurityManager().load_context(handler)
             if not SecurityManager().authenticated():
