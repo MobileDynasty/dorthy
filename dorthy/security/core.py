@@ -12,6 +12,8 @@ from contextlib import contextmanager
 
 from decorator import decorator
 
+from tornado.web import RequestHandler
+
 from dorthy.dp import Singleton, ObjectMap
 from dorthy.json import jsonify
 from dorthy.request import RequestContextManager, RequestContextError
@@ -539,6 +541,10 @@ def authorized(expression=None, arg_name="authentication"):
     object into a method or function that is decorated.
     """
     def _authorized(f, *args, **kwargs):
+
+        # if we're wrapping a HTTP request handler, don't worry about the OPTIONS method
+        if len(args) and isinstance(args[0], RequestHandler) and args[0].request.method == 'OPTIONS':
+            return f(*args, **kwargs)
 
         authorized_attribute = AuthorizedAttribute(f=f, args=args, kwargs=kwargs)
         with authorized_context(expression=expression, authorized_attribute=authorized_attribute) as authentication:
