@@ -19,7 +19,10 @@ class EnumSymbol(object):
         self.__description = description
 
     def __eq__(self, other):
-        return id(self) == id(other)
+        if isinstance(other, self.__class__):
+            return id(self) == id(other)
+        elif isinstance(other, dict):
+            return self._as_dict() == other
 
     def __hash__(self):
         return id(self)
